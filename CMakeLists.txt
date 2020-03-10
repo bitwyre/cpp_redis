@@ -38,39 +38,10 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 # project
 ###
 set(PROJECT cpp_redis)
+set(PROJECT_VERSION 4.3.1)
 project(${PROJECT} CXX)
-
-
-###
-# compilation options
-###
-if(WIN32)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /O2 /bigobj")
-
-  # was causing conflics with gtest build
-  string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
-
-  if("${MSVC_RUNTIME_LIBRARY_CONFIG}" STREQUAL "")
-    set(MSVC_RUNTIME_LIBRARY_CONFIG "/MT")
-  endif()
-
-  foreach(flag_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
-    if("${MSVC_RUNTIME_LIBRARY_CONFIG}" STREQUAL "/MT")
-      string(REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-    elseif("${MSVC_RUNTIME_LIBRARY_CONFIG}" STREQUAL "/MD")
-      string(REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
-    else()
-      string(REPLACE "/MD" "${MSVC_RUNTIME_LIBRARY_CONFIG}" ${flag_var} "${${flag_var}}")
-      string(REPLACE "/MT" "${MSVC_RUNTIME_LIBRARY_CONFIG}" ${flag_var} "${${flag_var}}")
-    endif()
-  endforeach()
-
-  add_definitions(-D_UNICODE)
-  add_definitions(-DUNICODE)
-  add_definitions(-DWIN32_LEAN_AND_MEAN)
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -W -Wall -Wextra -O3")
-endif(WIN32)
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup()
 
 
 ###
@@ -137,7 +108,9 @@ configure_file("cpp_redis.pc.in" "${CMAKE_PKGCONFIG_OUTPUT_DIRECTORY}/cpp_redis.
 # executable
 ###
 add_library(${PROJECT} ${SOURCES})
-set_property(TARGET ${PROJECT} PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(${PROJECT} PUBLIC
+                           $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/includes>
+                           $<INSTALL_INTERFACE:include>)
 
 if(WIN32)
   set_target_properties(${PROJECT}
@@ -215,3 +188,21 @@ endif(BUILD_TESTS)
 if(NOT TACOPIE_LIBRARY AND NOT USE_CUSTOM_TCP_CLIENT)
   add_subdirectory(tacopie)
 endif(NOT TACOPIE_LIBRARY AND NOT USE_CUSTOM_TCP_CLIENT)
+
+
+###
+# package
+###
+include(CMakePackageConfigHelpers)
+install(TARGETS cpp_redis tacopie EXPORT ${PROJECT}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(EXPORT ${PROJECT}
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT}
+        FILE        ${PROJECT}Config.cmake)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/${PROJECT}ConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT})
